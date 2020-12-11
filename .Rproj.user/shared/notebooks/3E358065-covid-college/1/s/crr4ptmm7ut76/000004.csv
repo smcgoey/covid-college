@@ -1,0 +1,6 @@
+"0",""
+"0","# plot percent change in applications as a function of home renting"
+"0","ggplot(state_home_applications) +"
+"0","  geom_point(aes(renter_pct, pct_change_apps)) +"
+"0","  labs(x=""Home renter %"", y=""% change in FAFSA applications"") +"
+"0","  geom_smooth(aes(renter_pct, pct_change_apps), method=""lm"", se=FALSE)"

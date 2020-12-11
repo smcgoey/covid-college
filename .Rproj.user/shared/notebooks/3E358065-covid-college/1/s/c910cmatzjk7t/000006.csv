@@ -1,0 +1,6 @@
+"0",""
+"0","# plot percent change in applications as a function of percent of HHI > 200K"
+"0","ggplot(state_hhi_applications) +"
+"0","  geom_point(aes(hhi_200k_plus_pct, pct_change_apps)) +"
+"0","  labs(x=""% with HHI > $200,000"", y=""% change in FAFSA applications"") +"
+"0","  geom_smooth(aes(hhi_200k_plus_pct, pct_change_apps), method=""lm"", se=FALSE)"

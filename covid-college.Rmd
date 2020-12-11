@@ -1,0 +1,428 @@
+---
+title: "Examining COVID-19's impact on interest in college in America"
+author: "Sean McGoey"
+date: "Updated December 10, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(scipen = 999)
+```
+
+# Introduction
+
+
+Intro intro intro intro
+
+
+***
+
+
+# Analysis
+
+
+## Setup
+
+
+First, I installed the relevant packages and loaded in my data files:
+
+* **FAFSA applications by Maryland high school** for the 2019-20 and 2020-21 (current) application cycles
+* **FAFSA applications by state** for the 2019-20 application cycle
+* **FAFSA applications by state** for the 2020-21 (current) application cycle
+* A sheet with the **ZIP code and county** of every high school in Maryland
+
+Then I joined the two state-level application files together into one and combined the Maryland school-level data with the ZIP/county data.
+
+
+```{r message=FALSE}
+
+# load packages
+library(tidyverse)
+library(tidycensus)
+library(janitor)
+library(ggplot2)
+library(scales)
+library(ggthemes)
+library(tigris)
+
+```
+
+```{r}
+
+# load files: Maryland FAFSA applications by high school for the 2019-20 and 2020-21 application cycles
+apps_maryland_2019_2020 <- read.csv("data/md_school_data_2019_2020.csv") %>%
+  mutate(city = tolower(city)) %>%
+  rename(school = high_school) %>%
+  mutate(school = tolower(school))
+
+# load files: FAFSA applications by state for the 2019-20 application cycle
+apps_by_state_2019_2020 <- read.csv("data/2019-2020-app-data-by-state-q4.csv") %>%
+  clean_names() %>%
+  rename(apps_2019_2020 = ytd_total) %>%
+  mutate(apps_2019_2020 = as.numeric(apps_2019_2020)) %>%
+  mutate(state = trimws(state,"right")) %>%
+  filter(state != "Blank") %>%
+  select(state, apps_2019_2020)
+
+# load files: FAFSA applications by state for the 2020-21 application cycle
+apps_by_state_2020_2021 <- read.csv("data/2020-2021-app-data-by-state-q4.csv") %>%
+  clean_names() %>%
+  rename(apps_2020_2021 = ytd_total) %>%
+  mutate(apps_2020_2021 = as.numeric(apps_2020_2021)) %>%
+  mutate(state = trimws(state,"right")) %>%
+  filter(state != "Blank") %>%
+  select(state, apps_2020_2021)
+
+# load files: zip/county data for every Maryland school
+zip_county <- read.csv("data/md_school_data_zip_county.csv") %>%
+  mutate(zip5 = as.character(zip5)) %>%
+  mutate(school = tolower(school))
+
+# join the Maryland FAFSA file to zip+county data - filtering out any rows with incomplete records
+applications_combined_maryland <- apps_maryland_2019_2020 %>%
+  left_join(zip_county, by="school") %>%
+  select(school, school_type, city, zip5, county, everything()) %>%
+  filter(!is.na(school_type)) %>%
+  filter(!is.na(zip5)) %>%
+  filter(!is.na(county)) %>%
+  filter(!is.na(submitted_oct232020)) %>%
+  filter(!is.na(complete_oct232020)) %>%
+  filter(!is.na(submitted_oct232019)) %>%
+  filter(!is.na(complete_oct232019))
+
+# join the state-by-state FAFSA files into one file
+applications_combined_usa <- apps_by_state_2019_2020 %>%
+  left_join(apps_by_state_2020_2021, by="state")
+
+```
+
+
+***
+
+
+## Incorporating census data
+
+
+Next, I used the **get_acs()** function in the **tidycensus** package to pull demographic information from the U.S. Census Bureau. I pulled the following variables at both the state level and the Maryland ZIP code level:
+
+* **total population**
+* **sub-populations by race:** white, Black, Hispanic
+* **sub-populations by homeownership:** own vs. rent
+* **sub-populations by household income:** \$0-9999, \$10K-14999, \$15K-19999, \$20K-24999, \$25K-29999, \$30K-34999, \$35K-39999, \$40K-44999, \$45K-49999, \$50K-59999, \$60K-74999, \$75K-99999, \$100K-124999, \$125K-149999, \$150K-199999, \$200K+ (re-grouped into \$0-24999, \$25K-49999, \$50K-74999, \$75K-99999, \$100K-149999, \$150K-199999, and \$200K+)
+
+Then I wrote those files out to .csv so they could be easily reloaded, but I'll include a sample statement below as an example.
+
+
+```{r eval=FALSE}
+
+# initialize census API key
+key <- census_api_key("5a421d7e31858456e7138010a068d43691cfeb2a")
+
+# load census data dictionary
+acs_vars <- load_variables(2018, "acs5")
+
+# pull total population by state from census data
+total_pop <- get_acs(geography = "state", variables = 'B01001_001', key = key) %>%
+  rename(state = NAME, renter_pop = estimate) %>%
+  select(state, renter_pop)
+
+```
+
+
+After doing that, I loaded the census files and joined them to the Maryland and state files. I also added fields for per-capita applications (**applications per 10,000 residents**) and **percent change in applications** to the national file in order for comparisons independent of population size. (I did the same for the Maryland file in a later step, but the national file was already as rolled up as it was going to be.)
+
+
+```{r message=FALSE}
+
+# load Maryland ZIP census data
+census_md_zip <- read_csv("data/census_md_zip.csv", col_names = TRUE) %>% mutate(zip5 = as.character(zip5))
+
+# load state-level census data
+census_state_zip <- read_csv("data/census_state_zip.csv", col_names = TRUE)
+
+# join Maryland application data to Maryland census data
+maryland_data_combined <- applications_combined_maryland %>%
+  left_join(census_md_zip, by = "zip5") %>%
+  rename(apps_2019_2020 = submitted_oct232019, apps_2020_2021 = submitted_oct232020) %>%
+  select(school, zip5, county, apps_2019_2020, apps_2020_2021, total_pop, white_pop, black_pop, hispanic_pop, owner_pop, renter_pop, hhi_0_24999_pop, hhi_25k_49999_pop, hhi_200k_plus_pop)
+
+# join state-level application data to census data
+state_data_combined <- applications_combined_usa %>%
+  inner_join(census_state_zip, by = "state") %>%
+  filter(state != "Puerto Rico") %>%
+  select(state, apps_2019_2020, apps_2020_2021, total_pop, white_pop, black_pop, hispanic_pop, owner_pop, renter_pop, hhi_0_24999_pop, hhi_25k_49999_pop, hhi_200k_plus_pop) %>%
+  mutate(apps_2019_2020_per_10k = apps_2019_2020/total_pop * 10000, apps_2020_2021_per_10k = apps_2020_2021/total_pop * 10000, pct_change_apps = ((apps_2020_2021 - apps_2019_2020)/apps_2019_2020))
+
+```
+
+
+After that, I grouped the Maryland results at the ZIP code level and used the ZIP-level rollup to make a county-level one. At this point, I added the **apps per 10,000 residents** and the **percentage change in applications** to each of those new objects as well.
+
+
+```{r message=FALSE}
+
+# roll up from the school level to the ZIP level -- need to summarise census data using mean because data is at ZIP level and multiple schools in same ZIP codes
+# also need to filter out ZIPs 20660 (possible error: more applications than residents) and 21285 (NA values)
+maryland_data_combined_zip <- maryland_data_combined %>%
+  filter(zip5 != "20660") %>%
+  filter(zip5 != "21285") %>%
+  group_by(zip5, county) %>%
+  summarise(apps_2019_2020 = sum(apps_2019_2020), apps_2020_2021 = sum(apps_2020_2021), total_pop = mean(total_pop), white_pop = mean(white_pop), black_pop = mean(black_pop), hispanic_pop = mean(hispanic_pop), owner_pop = mean(owner_pop), renter_pop = mean(renter_pop), hhi_0_24999_pop = mean(hhi_0_24999_pop), hhi_25k_49999_pop = mean(hhi_25k_49999_pop), hhi_200k_plus_pop = mean(hhi_200k_plus_pop))
+
+# roll up from the ZIP level to the county level -- summarise census data using sum since ZIPs are discrete sections of the county
+maryland_data_combined_county <- maryland_data_combined_zip %>%
+  group_by(county) %>%
+  summarise(apps_2019_2020 = sum(apps_2019_2020), apps_2020_2021 = sum(apps_2020_2021), total_pop = sum(total_pop), white_pop = sum(white_pop), black_pop = sum(black_pop), hispanic_pop = sum(hispanic_pop), owner_pop = sum(owner_pop), renter_pop = sum(renter_pop), hhi_0_24999_pop = sum(hhi_0_24999_pop), hhi_25k_49999_pop = sum(hhi_25k_49999_pop), hhi_200k_plus_pop = sum(hhi_200k_plus_pop)) %>%
+  mutate(apps_2019_2020_per_10k = apps_2019_2020/total_pop * 10000, apps_2020_2021_per_10k = apps_2020_2021/total_pop * 10000, pct_change_apps = ((apps_2020_2021 - apps_2019_2020)/apps_2019_2020))
+
+# add apps per 10,000 and % change in apps to ZIP rollup (added to county rollup in previous group)
+maryland_data_combined_zip <- maryland_data_combined_zip %>%
+  mutate(apps_2019_2020_per_10k = apps_2019_2020/total_pop * 10000, apps_2020_2021_per_10k = apps_2020_2021/total_pop * 10000, pct_change_apps = ((apps_2020_2021 - apps_2019_2020)/apps_2019_2020))
+
+```
+
+
+## Assessing the differences in application volume year to year
+
+
+In order to determine what to examine further, I used two-sided t-tests to determine if there were **meaningful differences in the volume of applications per 10,000** in Maryland ZIPs/counties or in U.S. states. I ran each as a paired test with a confidence level of 0.95.
+
+
+```{r}
+
+# t-test for Maryland ZIPs
+t.test(maryland_data_combined_zip$apps_2020_2021_per_10k, maryland_data_combined_zip$apps_2019_2020_per_10k, alternative = "two.sided", mu = 0, paired = TRUE, conf.level = 0.95)
+
+# t-test for Maryland counties
+t.test(maryland_data_combined_county$apps_2020_2021_per_10k, maryland_data_combined_county$apps_2019_2020_per_10k, alternative = "two.sided", mu = 0, paired = TRUE, conf.level = 0.95)
+
+# t-test for U.S. states
+t.test(state_data_combined$apps_2020_2021_per_10k, state_data_combined$apps_2019_2020_per_10k, alternative = "two.sided", mu = 0, paired = TRUE, conf.level = 0.95)
+
+```
+
+
+The t-tests found that the difference in applications per 10,000 at the Maryland ZIP level was not at all statistically significant (p <= 0.05), so no further exploration was merited, and he Maryland county data just barely missed the threshold for significance (p = 0.055), so I held onto that for potential analysis later.
+
+But **the state-level data was significant** (p = 0.04 x 10^-10^), so states became the area of primary focus.
+
+
+***
+
+
+## Correlations between selected variables and change in application volume
+
+
+The next step was to determine where there were correlations between case drops and the demographic variables that I pulled from the census at a state level.
+
+
+### Household Income
+
+
+An obvious place to start would be with household income.
+
+As a hypothesis, I would expect that states with a higher percentage of families making **less than \$25,000 per year** (or **\$25,000-50,000**) would be more likely to see a drop in FAFSA applications (or conversely, that states with higher percentages of families making **more than \$200,000 per year** would be less likely to see drops).
+
+
+```{r}
+
+# build object with percentages of households having HHI 0-25k/25k-50k/200k+ and percent change in applications
+state_hhi_applications <- state_data_combined %>%
+  mutate(hhi_0_24999_pct = hhi_0_24999_pop / total_pop, hhi_25k_49999_pct = hhi_25k_49999_pop / total_pop, hhi_200k_plus_pct = hhi_200k_plus_pop / total_pop) %>%
+  select(state, hhi_0_24999_pct, hhi_25k_49999_pct, hhi_200k_plus_pct, pct_change_apps)
+
+# plot percent change in applications as a function of percent of HHI 0-25K
+ggplot(state_hhi_applications) +
+  geom_point(aes(hhi_0_24999_pct, pct_change_apps)) +
+  labs(x="% with HHI $0-24,999", y="% change in FAFSA applications") +
+  geom_smooth(aes(hhi_0_24999_pct, pct_change_apps), method="lm", se=FALSE)
+
+# plot percent change in applications as a function of percent of HHI 25K-50K
+ggplot(state_hhi_applications) +
+  geom_point(aes(hhi_25k_49999_pct, pct_change_apps)) +
+  labs(x="% with HHI $25,000-49,999", y="% change in FAFSA applications") +
+  geom_smooth(aes(hhi_25k_49999_pct, pct_change_apps), method="lm", se=FALSE)
+
+# plot percent change in applications as a function of percent of HHI > 200K
+ggplot(state_hhi_applications) +
+  geom_point(aes(hhi_200k_plus_pct, pct_change_apps)) +
+  labs(x="% with HHI > $200,000", y="% change in FAFSA applications") +
+  geom_smooth(aes(hhi_200k_plus_pct, pct_change_apps), method="lm", se=FALSE)
+
+# run correlation tests for each HHI percentage and percent change in applications
+cor.test(state_hhi_applications$hhi_0_24999_pct, state_hhi_applications$pct_change_apps)
+cor.test(state_hhi_applications$hhi_25k_49999_pct, state_hhi_applications$pct_change_apps)
+cor.test(state_hhi_applications$hhi_200k_plus_pct, state_hhi_applications$pct_change_apps)
+
+```
+
+
+**The correlation is not particularly strong or significant** between application drops and HHI of either 25K-50K or 200K+.
+
+There was, however, **a statistically significant (if not terribly strong) correlation** between the percentage of a state's population with HHI less than \$25,000 and the likelihood that that state's FAFSA applications dropped.
+
+
+### Race
+
+
+Next, I looked at how a **state's racial demographics correlated with change in FAFSA applications**, especially considering the well-noted impact of COVID-19 on the Black population.
+
+
+```{r}
+
+# build object with percentages of white/Black/Hispanic population and percent change in applications
+state_race_applications <- state_data_combined %>%
+  mutate(white_pct = white_pop / total_pop, black_pct = black_pop / total_pop, hispanic_pct = hispanic_pop / total_pop) %>%
+  select(state, white_pct, black_pct, hispanic_pct, pct_change_apps)
+
+# plot percent change in applications as a function of Black population
+ggplot(state_race_applications) +
+  geom_point(aes(black_pct, pct_change_apps)) +
+  labs(x="Black population %", y="% change in FAFSA applications") +
+  geom_smooth(aes(black_pct, pct_change_apps), method="lm", se=FALSE)
+
+# plot percent change in applications as a function of Hispanic population
+ggplot(state_race_applications) +
+  geom_point(aes(hispanic_pct, pct_change_apps)) +
+  labs(x="Hispanic population %", y="% change in FAFSA applications") +
+  geom_smooth(aes(hispanic_pct, pct_change_apps), method="lm", se=FALSE)
+
+# plot percent change in applications as a function of white population
+ggplot(state_race_applications) +
+  geom_point(aes(white_pct, pct_change_apps)) +
+  labs(x="White population %", y="% change in FAFSA applications") +
+  geom_smooth(aes(white_pct, pct_change_apps), method="lm", se=FALSE)
+
+# run correlation tests for each racial population and percent change in applications
+cor.test(state_race_applications$black_pct, state_race_applications$pct_change_apps)
+cor.test(state_race_applications$hispanic_pct, state_race_applications$pct_change_apps)
+cor.test(state_race_applications$white_pct, state_race_applications$pct_change_apps)
+
+```
+
+
+The relationship between Black population and FAFSA application drops was not very strong and not statistically significant, but the relationship between Hispanic population and FAFSA application changes was fascinating: **States with higher percentages of Hispanic population were actually _less likely_ to see their applications fall**.
+
+And **the whiter a state was, the _more likely_ applications were to fall**, which makes some intuitive sense considering that the list of states with the 10 largest drops in application volume includes Maine and Vermont, two far Northeastern states with 93% white populations, and Alabama and Arkansas, which are among [the whitest states in the Deep South](https://www.kff.org/other/state-indicator/distribution-by-raceethnicity/?currentTimeframe=0&selectedRows=%7B%22states%22:%7B%22alabama%22:%7B%7D,%22arkansas%22:%7B%7D,%22florida%22:%7B%7D,%22georgia%22:%7B%7D,%22louisiana%22:%7B%7D,%22mississippi%22:%7B%7D,%22north-carolina%22:%7B%7D,%22south-carolina%22:%7B%7D,%22tennessee%22:%7B%7D%7D%7D&sortModel=%7B%22colId%22:%22White%22,%22sort%22:%22desc%22%7D).
+
+
+### Home ownership vs. renting
+
+
+I also wanted to determine whether there was a meaningful relationship between **home renting vs. ownership and FAFSA applications**.
+
+
+```{r}
+
+# build object with percentages of owners/renters and percent change in applications
+state_home_applications <- state_data_combined %>%
+  mutate(renter_pct = renter_pop / total_pop, owner_pct = owner_pop / total_pop) %>%
+  select(state, renter_pct, owner_pct, pct_change_apps)
+
+# plot percent change in applications as a function of home ownership
+ggplot(state_home_applications) +
+  geom_point(aes(owner_pct, pct_change_apps)) +
+  labs(x="Homeowner %", y="% change in FAFSA applications") +
+  geom_smooth(aes(owner_pct, pct_change_apps), method="lm", se=FALSE)
+
+# plot percent change in applications as a function of home renting
+ggplot(state_home_applications) +
+  geom_point(aes(renter_pct, pct_change_apps)) +
+  labs(x="Home renter %", y="% change in FAFSA applications") +
+  geom_smooth(aes(renter_pct, pct_change_apps), method="lm", se=FALSE)
+
+# run correlation tests for own/rent and percent change in applications
+cor.test(state_home_applications$owner_pct, state_home_applications$pct_change_apps)
+cor.test(state_home_applications$renter_pct, state_home_applications$pct_change_apps)
+
+```
+
+
+Neither relationship there is either strong or statistically significant.
+
+
+### COVID-19 Cases
+
+The final piece of the puzzle was to look at the relationship between **FAFSA application changes and COVID-19 cases**. In order to do that, I needed to get COVID-19 case data. I opted to use [The New York Times' data](https://github.com/nytimes/covid-19-data) as it's a well-documented data set that I've worked with before. I pulled in the county-level data (so that I could both roll up to the state level and use the county numbers to look at Maryland counties at the end) and filtered to the key value of each state's **case peak**.
+
+```{r message=FALSE}
+
+# read in NYT's county-level COVID-19 data
+nyt_covid <- read.csv("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv") %>%
+  #mutate(key = paste(county, state, sep = "|", collapse=NULL)) %>%
+  filter(!is.na(fips)) %>%
+  filter(!str_detect(county, "Unknown")) %>%
+  group_by(state, county) %>%
+  summarise(case_peak = max(cases))
+
+# build a Maryland-specific county-level table, manipulating the county field to match the format of our application objects
+nyt_covid_maryland <- nyt_covid %>%
+  filter(state == "Maryland") %>%
+  mutate(county = tolower(county)) %>%
+  mutate(county = if_else(str_detect(county, "city"), county, paste0(county, " county", collapse=NULL)))
+
+# build a state-level table, rolling each county up and summing the case peaks
+nyt_covid_state <- nyt_covid %>%
+  group_by(state) %>%
+  summarise(case_peak = sum(case_peak))
+
+```
+
+
+Then I joined the state-level COVID-19 table to the state application data I looked at in previous sections, found the peak cases per 10,000 residents, and used that to plot **FAFSA application volume changes as a function of COVID-19 peaks** and test the correlation.
+
+
+```{r}
+
+# build object with peak COVID-19 cases per 10,000 residents and percent change in applications
+state_covid_applications <- state_data_combined %>%
+  left_join(nyt_covid_state, by="state") %>%
+  mutate(case_peak_per_10k = ((case_peak / total_pop) * 10000)) %>%
+  select(state, case_peak_per_10k, pct_change_apps)
+
+# plot percent change in applications as a function of case peak per 10k residents
+ggplot(state_covid_applications) +
+  geom_point(aes(case_peak_per_10k, pct_change_apps)) +
+  labs(x="Peak COVID-19 cases per 10k residents", y="% change in FAFSA applications") +
+  geom_smooth(aes(case_peak_per_10k, pct_change_apps), method="lm", se=FALSE)
+
+# run correlation test between case peak per 10K and percent change in applications
+cor.test(state_covid_applications$case_peak_per_10k, state_covid_applications$pct_change_apps)
+
+```
+
+
+Ultimately, even though there is a meaningful difference between FAFSA application volume in the 2019-20 and 2020-21 cycles at the state level, it is not correlated strongly or significantly with a state's COVID-19 case peak. Even though the year-to-year difference was not quite statistically significant (p = 0.055), I performed the same analysis on Maryland counties as well.
+
+
+```{r}
+
+# build object with peak COVID-19 cases per 10,000 residents and percent change in applications
+maryland_covid_applications <- maryland_data_combined_county %>%
+  left_join(nyt_covid_maryland, by="county") %>%
+  select (-state) %>%
+  mutate(case_peak_per_10k = ((case_peak / total_pop) * 10000)) %>%
+  select(county, case_peak_per_10k, pct_change_apps)
+
+# plot percent change in applications as a function of case peak per 10k residents
+ggplot(maryland_covid_applications) +
+  geom_point(aes(case_peak_per_10k, pct_change_apps)) +
+  labs(x="Peak COVID-19 cases per 10k residents", y="% change in FAFSA applications") +
+  geom_smooth(aes(case_peak_per_10k, pct_change_apps), method="lm", se=FALSE)
+
+# run correlation test between case peak per 10K and percent change in applications
+cor.test(maryland_covid_applications$case_peak_per_10k, maryland_covid_applications$pct_change_apps)
+
+```
+
+
+As with states, there is no strongly identifiable relationship between COVID-19 case peaks and changes in FAFSA application volumes for Maryland counties.
+
+
+***
+
+
+# Conclusions
+
+Conclusions conclusions conclusions
