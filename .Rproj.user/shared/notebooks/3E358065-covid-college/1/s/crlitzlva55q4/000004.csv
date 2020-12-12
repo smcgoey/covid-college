@@ -1,6 +1,0 @@
-"0",""
-"0","# plot percent change in applications as a function of Hispanic population"
-"0","ggplot(state_race_applications) +"
-"0","  geom_point(aes(hispanic_pct, pct_change_apps)) +"
-"0","  labs(x=""Hispanic population %"", y=""% change in FAFSA applications"") +"
-"0","  geom_smooth(aes(hispanic_pct, pct_change_apps), method=""lm"", se=FALSE)"
