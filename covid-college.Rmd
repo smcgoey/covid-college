@@ -1,7 +1,7 @@
 ---
-title: "Examining the decreasing interest in college in America during the coronavirus pandemic"
+title: "COVID-19 and College:  What Is Driving Decreased College Enrollment During the Coronavirus Pandemic?"
 author: "Sean McGoey"
-date: "Updated December 11, 2020"
+date: "Updated December 13, 2020"
 output: html_document
 ---
 
@@ -12,8 +12,30 @@ options(scipen = 999)
 
 # Introduction
 
+## Abstract
 
-Intro intro intro intro
+The COVID-19 pandemic has turned the world of education on its head, shutting down campuses worldwide as a precaution against transmission of the novel coronavirus and introducing a generation of students to remote learning.
+The effects have extended all the way to the collegiate level, where the out-of-classroom development that comes from many students’ first experience living outside the homes they grew up in can have nearly as large an impact as the educational aspect itself.
+
+College enrollments have fallen for nine consecutive years [1], and the National Student Clearinghouse’s data demonstrates that undergraduate enrollment fell by 4% in fall 2020 — more than double the size of decreases in previous years [2].
+
+And even though distribution of vaccines has started in a handful of countries, coronavirus cases and deaths are spiking in the United States, forcing even many campuses that had reopened for some amount of in-person instruction to shut their doors again.
+
+I set out to assess whether the pandemic might drive a continued stretch of decreases in enrollment, or whether there were other factors to which the declines could be attributed.
+
+## Literature review
+
+Given the relative newness of the coronavirus pandemic — we are still currently in the midst of the first academic year that has started since the pandemic started to spread in the United States in March 2020 — there is little or no research that has been done specifically into how COVID-19 has impacted the demand for postsecondary education. In fact, fairly little research is approached from the point of view of the students making decisions on whether to enroll.
+
+Lin and Liu’s 2019 paper on how delaying college enrollment impacts future earnings for students [3] takes the enrollment decision as the catalyst to examine earnings trajectories rather than seeking to understand the catalysts for a decision to delay enrollment.
+
+Hemelt and Marcotte’s paper on how tuition increases at four-year public universities affects students’ propensity to enroll [4] looks at the enrollment decision, but specifically through the lens of increasing tuition, not accounting for outside factors that may impact the decision.
+
+Timothy Meyer’s 2017 dissertation on enrollment change during the Great Recession of 2008–2009 [5] addresses how at “non-selective” colleges, which would otherwise fit the definition of luxury goods quite well, enrollment actually increased during a period of great economic turmoil, similar to what has taken place during the pandemic.
+
+And Abel and Deitz’s 2014 paper on whether the benefit of college still outweighs the rising cost of attendance [6], which Meyer refers to in his dissertation, finds that when economic conditions are poor, the opportunity cost of attending college decreases (since the benefits of working are muted by lower wages, fewer opportunities, etc.).
+
+But neither Meyer nor Abel and Deitz get at the heart of what is happening as part of the COVID-19 pandemic. While the Great Recession was unquestionably an earth-shaking period of economic uncertainty, the pandemic has fundamentally altered what kind of experience colleges can offer, which surely has additional impact on whether or not a student decides to enroll.
 
 
 ***
@@ -487,4 +509,39 @@ Neither relationship there is either strong or statistically significant.
 
 # Conclusions
 
-Conclusions conclusions conclusions
+## Summary of findings
+
+My analysis found that there was indeed a statistically significant drop in FAFSA applications at a state level from the 2019–2020 application cycle to the 2020–2021 cycle, though not at a county or ZIP code level for the state of Maryland.
+
+Household income below $25,000 a year was positively correlated with larger drops in FAFSA applications, suggesting that students from already economically strained may be more likely to delay or forgo college enrollment during the pandemic. And in an interesting discovery, states with larger Hispanic populations avoided the largest drops in applications, consistent with data from the National Student Clearinghouse showing that [Hispanic students have seen some of the smallest declines in enrollment in 2020](https://www.studentclearinghouse.org/blog/fall-2020-undergraduate-enrollment-down-4-compared-to-same-time-last-year/).
+
+There were no meaningful correlations between COVID-19 cases, household income > $200,000, white population, black population, home ownership, or home renting and a state’s year-over-year change in FAFSA applications.
+
+## Limitations
+
+One of the most obvious limitations of this analysis is that FAFSA applications are an imperfect proxy for interest in college enrollment. There are any number of reasons why a student might not fill out a FAFSA form at all — or simply after the window of time that I was able to examine.
+
+## Future work
+
+The primary logical extensions of this work would include replicating the analysis with actual enrollment numbers instead of FAFSA applications and incorporating other variables into the correlation analysis: public vs. private high schools, public vs. private colleges, etc.
+
+
+***
+
+
+# REFERENCES
+
+[1] Paul Fain, 2019. **[College Enrollment Declines Continue](https://www.insidehighered.com/quicktakes/2019/05/30/college-enrollment-declines-continue)**. _Inside Higher Ed_ (May 30, 2019)
+
+[2]	Todd Sedmak, 2020. **[Fall 2020 Undergraduate Enrollment Down 4% Compared to Same Time Last Year](https://www.studentclearinghouse.org/blog/fall-2020-undergraduate-enrollment-down-4-compared-to-same-time-last-year/)**. National Student Clearinghouse Media Center (Oct. 15, 2020) 
+
+[3]	Lin, Yuxin., & Liu, Vivian (2019). **[Timing Matters: How Delaying College Enrollment Affects Earnings Trajectories](https://files.eric.ed.gov/fulltext/ED595238.pdf)**. _CCRC Working Paper No. 105 – Community College Research Center_ (Feb 2019)
+
+[4]	Hemelt, S.W., & Marcotte, D.E. (2016). **[The Changing Landscape of Tuition and Enrollment in American Public Higher Education](http://doi.org/10.1353/rus.2016.0002)**. _RSF: The Russell Sage Foundation Journal of the Social Sciences 2(1)_, 42-68
+
+[5]	Meyer, Timothy J. (2017), **["A Quantitative Study of Enrollment Change during the Great Recession at Non-selective Small Private Colleges and Universities"](https://ir.stthomas.edu/caps_ed_lead_docdiss/94)**. In _Education Doctoral Dissertations in Leadership_. 94.
+
+[6]	Abel, Jaison R. and Deitz, Richard (2014). **[Do the Benefits of College Still Outweigh the Costs?](https://ssrn.com/abstract=2477864)**. In _Current Issues in Economics and Finance_, Vol. 20, No. 3, 2014.
+
+
+
