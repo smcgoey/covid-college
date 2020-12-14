@@ -1,0 +1,7 @@
+"0",""
+"0","# plot percent change in applications as a function of case peak per 10k residents"
+"0","ggplot(state_covid_applications) +"
+"0","  geom_point(aes(case_peak_per_10k, pct_change_apps)) +"
+"0","  labs(x=""Peak COVID-19 cases per 10k residents"", y=""% change in FAFSA applications"") +"
+"0","  geom_smooth(aes(case_peak_per_10k, pct_change_apps), method=""lm"", se=FALSE)"
+"0",""
